@@ -1,11 +1,9 @@
 """
-COMPLETE E-COMMERCE PAYMENT AUTOMATION SYSTEM
-==============================================
-This shows how big platforms like Amazon verify payments automatically.
-NO MANUAL CHECKING NEEDED!
-
-Run this file: python payment_system.py
-Then visit: http://localhost:5000
+FAPSHI PAYMENT LINK SYSTEM - LIVE MODE
+========================================
+Uses Fapshi's /initiate-pay endpoint to generate payment links
+Customer pays on Fapshi's hosted page
+Status updates via webhook + polling
 """
 
 from flask import Flask, request, jsonify, render_template_string
@@ -14,30 +12,35 @@ import sqlite3
 from datetime import datetime
 import threading
 import time
+import sys
+import io
 
-# ============================================
-# CONFIGURATION
-# ============================================
-FAPSHI_BASE_URL = "https://live.fapshi.com"
-FAPSHI_API_KEY = "FAK_4a22fcf5748fa13bb5d34081c6f43b01"
+# Fix encoding issues on Windows
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# ==================== CONFIGURATION ====================
+FAPSHI_BASE_URL = "https://live.fapshi.com"  # LIVE MODE
+FAPSHI_API_KEY = "FAK_a3fb94b55652b3a77daba299f61a2b83"
 FAPSHI_API_USER = "5c6cc9f6-ad70-47fe-b39e-9185df8e31fb"
+RENDER_URL = "https://payment-789p.onrender.com"
+# ======================================================
 
 app = Flask(__name__)
 
-# ============================================
-# DATABASE SETUP
-# ============================================
 def init_db():
+    """Initialize SQLite database"""
     conn = sqlite3.connect('orders.db')
     c = conn.cursor()
+    c.execute('DROP TABLE IF EXISTS orders')
     c.execute('''
-        CREATE TABLE IF NOT EXISTS orders (
+        CREATE TABLE orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             order_id TEXT UNIQUE,
             customer_email TEXT,
             customer_phone TEXT,
             amount INTEGER,
             trans_id TEXT,
+            payment_link TEXT,
             status TEXT DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP
@@ -45,529 +48,438 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+    print("[OK] Database initialized!")
 
 init_db()
 
-# ============================================
-# HTML TEMPLATE WITH TAILWIND CSS
-# ============================================
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automated Payment System</title>
+    <title>Fapshi Payment Link System</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
         <!-- Header -->
         <div class="text-center mb-12">
-            <h1 class="text-5xl font-bold text-white mb-4">
-                🚀 Automated Payment System
-            </h1>
-            <p class="text-xl text-white opacity-90">
-                How Amazon & Big E-commerce Verify Payments (Zero Manual Work!)
-            </p>
+            <h1 class="text-5xl font-bold text-gray-800 mb-2">Payment Link System</h1>
+            <p class="text-gray-600">Powered by Fapshi - Live Mode</p>
         </div>
 
-        <!-- Explanation Cards -->
-        <div class="grid md:grid-cols-2 gap-6 mb-8">
-            <!-- Method 1: Webhooks -->
-            <div class="bg-white rounded-2xl shadow-2xl p-8 transform hover:scale-105 transition">
-                <div class="flex items-center mb-4">
-                    <span class="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold">
-                        METHOD 1: WEBHOOKS
-                    </span>
-                    <span class="ml-2 text-green-600">⚡ Real-time</span>
-                </div>
-                <h2 class="text-2xl font-bold mb-4 text-gray-800">Instant Notifications</h2>
-                <div class="space-y-3 text-gray-700">
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">1️⃣</span>
-                        <p>Customer pays via MTN MOMO</p>
-                    </div>
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">2️⃣</span>
-                        <p>Fapshi <strong>instantly calls YOUR server</strong></p>
-                    </div>
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">3️⃣</span>
-                        <p>Your system auto-updates order status</p>
-                    </div>
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">4️⃣</span>
-                        <p>Customer gets product/service immediately</p>
-                    </div>
-                </div>
-                <div class="mt-6 p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
-                    <p class="text-sm font-semibold text-green-800">
-                        ✅ Used by: Amazon, Shopify, Stripe, PayPal
-                    </p>
-                </div>
-            </div>
-
-            <!-- Method 2: Polling -->
-            <div class="bg-white rounded-2xl shadow-2xl p-8 transform hover:scale-105 transition">
-                <div class="flex items-center mb-4">
-                    <span class="bg-yellow-500 text-white px-4 py-2 rounded-full text-sm font-bold">
-                        METHOD 2: POLLING
-                    </span>
-                    <span class="ml-2 text-yellow-600">🔄 Backup</span>
-                </div>
-                <h2 class="text-2xl font-bold mb-4 text-gray-800">Scheduled Checks</h2>
-                <div class="space-y-3 text-gray-700">
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">1️⃣</span>
-                        <p>Background job runs every 5 minutes</p>
-                    </div>
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">2️⃣</span>
-                        <p>Checks all pending orders in database</p>
-                    </div>
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">3️⃣</span>
-                        <p>Asks Fapshi: "Is payment complete?"</p>
-                    </div>
-                    <div class="flex items-start">
-                        <span class="text-2xl mr-3">4️⃣</span>
-                        <p>Updates status if changed</p>
-                    </div>
-                </div>
-                <div class="mt-6 p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
-                    <p class="text-sm font-semibold text-yellow-800">
-                        ⚠️ Safety net in case webhooks fail
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Test the System -->
-        <div class="bg-white rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 class="text-3xl font-bold mb-6 text-gray-800 text-center">
-                🛒 Test the System (Simulate Customer Checkout)
-            </h2>
-            
-            <form id="checkoutForm" class="max-w-md mx-auto space-y-4">
+        <!-- Payment Form -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-8">
+            <h2 class="text-2xl font-semibold mb-6">Create Payment Link</h2>
+            <form id="checkoutForm" class="space-y-5">
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-2">Phone Number</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
                     <input type="text" id="phone" value="653288958" 
-                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                           placeholder="6XXXXXXXX">
                 </div>
-                
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-2">Email</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                     <input type="email" id="email" value="mushiehedison66@gmail.com"
-                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                           placeholder="email@example.com">
                 </div>
-                
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-2">Amount (XAF)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Amount (XAF)</label>
                     <input type="number" id="amount" value="500" min="100"
-                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                           placeholder="Minimum 100 XAF">
                 </div>
-                
                 <button type="submit" 
-                    class="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-bold text-lg hover:shadow-xl transform hover:scale-105 transition">
-                    💳 Initiate Payment
+                        class="w-full bg-indigo-600 text-white py-4 rounded-lg font-semibold hover:bg-indigo-700 transition-colors">
+                    Generate Payment Link
                 </button>
             </form>
-            
+
             <div id="result" class="mt-6 hidden"></div>
         </div>
 
-        <!-- Recent Orders -->
-        <div class="bg-white rounded-2xl shadow-2xl p-8">
-            <h2 class="text-3xl font-bold mb-6 text-gray-800 text-center">
-                📦 Recent Orders (Auto-Updated!)
-            </h2>
+        <!-- Orders List -->
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-semibold">Recent Transactions</h2>
+                <button onclick="loadOrders()" class="text-indigo-600 hover:text-indigo-800">
+                    Refresh
+                </button>
+            </div>
             <div id="ordersList" class="space-y-4">
-                <p class="text-center text-gray-500">No orders yet. Create one above!</p>
-            </div>
-            <button onclick="loadOrders()" 
-                class="mt-6 w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">
-                🔄 Refresh Orders
-            </button>
-        </div>
-
-        <!-- Stats -->
-        <div class="grid md:grid-cols-3 gap-6 mt-8">
-            <div class="bg-gradient-to-br from-green-500 to-green-700 rounded-2xl shadow-xl p-6 text-white">
-                <div class="text-5xl font-bold mb-2">0ms</div>
-                <div class="text-lg opacity-90">Manual Work Needed</div>
-            </div>
-            <div class="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-xl p-6 text-white">
-                <div class="text-5xl font-bold mb-2">100%</div>
-                <div class="text-lg opacity-90">Automated</div>
-            </div>
-            <div class="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl shadow-xl p-6 text-white">
-                <div class="text-5xl font-bold mb-2">24/7</div>
-                <div class="text-lg opacity-90">Always Running</div>
+                <p class="text-center text-gray-500 py-8">Loading orders...</p>
             </div>
         </div>
     </div>
 
     <script>
-        // Submit checkout form
         document.getElementById('checkoutForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const phone = document.getElementById('phone').value;
-            const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value.trim();
+            const email = document.getElementById('email').value.trim();
             const amount = document.getElementById('amount').value;
-            
+
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<p class="text-center text-gray-600">Processing payment...</p>';
+            resultDiv.innerHTML = '<div class="text-center py-4"><div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div><p class="mt-2 text-gray-600">Creating payment link...</p></div>';
             resultDiv.classList.remove('hidden');
-            
+
             try {
-                const response = await fetch('/checkout', {
+                const res = await fetch('/checkout', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone, email, amount: parseInt(amount) })
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({phone, email, amount: parseInt(amount)})
                 });
-                
-                const data = await response.json();
-                
+
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
                 resultDiv.innerHTML = `
-                    <div class="p-6 bg-green-50 border-2 border-green-500 rounded-lg">
-                        <h3 class="text-2xl font-bold text-green-800 mb-4">✅ Payment Initiated!</h3>
-                        <div class="space-y-2 text-gray-700">
-                            <p><strong>Order ID:</strong> ${data.order_id}</p>
-                            <p><strong>Transaction ID:</strong> ${data.trans_id}</p>
-                            <p class="mt-4 p-3 bg-yellow-100 rounded">${data.message}</p>
+                    <div class="border-2 border-green-500 bg-green-50 rounded-lg p-6">
+                        <div class="text-center mb-4">
+                            <div class="text-4xl mb-2">&#x2705;</div>
+                            <h3 class="text-xl font-semibold text-green-800">Payment Link Created!</h3>
+                            <p class="text-sm text-gray-600 mt-1">Order ID: ${data.order_id}</p>
                         </div>
-                        <button onclick="checkStatus('${data.order_id}')" 
-                            class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-                            Check Status
-                        </button>
+                        <a href="${data.payment_link}" target="_blank" 
+                           class="block bg-indigo-600 text-white text-center px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors">
+                            Open Payment Page
+                        </a>
+                        <p class="text-xs text-gray-600 text-center mt-3">
+                            The payment page will open in a new tab
+                        </p>
                     </div>
                 `;
+
+                // Open payment link
+                window.open(data.payment_link, '_blank');
                 
-                // Auto-refresh orders
-                setTimeout(loadOrders, 2000);
+                // Start watching for status updates
+                watchStatus(data.order_id);
                 
-            } catch (error) {
+                // Refresh orders list
+                loadOrders();
+
+            } catch (err) {
                 resultDiv.innerHTML = `
-                    <div class="p-6 bg-red-50 border-2 border-red-500 rounded-lg">
-                        <p class="text-red-800">Error: ${error.message}</p>
+                    <div class="border-2 border-red-500 bg-red-50 rounded-lg p-4">
+                        <p class="text-red-700 font-medium">Error: ${err.message}</p>
                     </div>
                 `;
             }
         });
-        
-        // Load all orders
+
+        function watchStatus(orderId) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/order/${orderId}`);
+                    const order = await res.json();
+                    
+                    if (order.status !== 'pending') {
+                        clearInterval(interval);
+                        
+                        const resultDiv = document.getElementById('result');
+                        if (order.status === 'successful') {
+                            resultDiv.innerHTML = `
+                                <div class="border-2 border-green-500 bg-green-50 rounded-lg p-6 text-center">
+                                    <div class="text-5xl mb-3">&#x1F389;</div>
+                                    <h3 class="text-2xl font-bold text-green-800 mb-2">Payment Successful!</h3>
+                                    <p class="text-gray-700">Amount: <span class="font-semibold">${order.amount} XAF</span></p>
+                                    <p class="text-sm text-gray-600 mt-2">Transaction ID: ${order.trans_id}</p>
+                                </div>
+                            `;
+                        } else if (order.status === 'failed') {
+                            resultDiv.innerHTML = `
+                                <div class="border-2 border-red-500 bg-red-50 rounded-lg p-6 text-center">
+                                    <div class="text-4xl mb-2">&#x274C;</div>
+                                    <h3 class="text-xl font-bold text-red-800">Payment Failed</h3>
+                                    <p class="text-sm text-gray-600 mt-2">Please try again</p>
+                                </div>
+                            `;
+                        }
+                        
+                        loadOrders();
+                    }
+                } catch (err) {
+                    console.error('Status check error:', err);
+                }
+            }, 5000);
+        }
+
         async function loadOrders() {
             try {
-                const response = await fetch('/orders');
-                const orders = await response.json();
-                
-                const ordersDiv = document.getElementById('ordersList');
+                const res = await fetch('/orders');
+                const orders = await res.json();
+                const list = document.getElementById('ordersList');
                 
                 if (orders.length === 0) {
-                    ordersDiv.innerHTML = '<p class="text-center text-gray-500">No orders yet.</p>';
+                    list.innerHTML = '<p class="text-center text-gray-500 py-8">No transactions yet</p>';
                     return;
                 }
                 
-                ordersDiv.innerHTML = orders.map(order => `
-                    <div class="border-2 ${getStatusColor(order.status)} rounded-lg p-4">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <p class="font-bold text-lg">${order.order_id}</p>
-                                <p class="text-sm text-gray-600">${order.email}</p>
-                                <p class="text-sm text-gray-600">${order.amount} XAF</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="px-4 py-2 rounded-full font-bold ${getStatusBadge(order.status)}">
-                                    ${order.status.toUpperCase()}
-                                </span>
-                                <p class="text-xs text-gray-500 mt-2">${new Date(order.created_at).toLocaleString()}</p>
+                list.innerHTML = orders.map(o => {
+                    const statusColors = {
+                        'successful': 'border-green-500 bg-green-50',
+                        'failed': 'border-red-500 bg-red-50',
+                        'pending': 'border-yellow-500 bg-yellow-50'
+                    };
+                    
+                    const statusText = {
+                        'successful': 'SUCCESS',
+                        'failed': 'FAILED',
+                        'pending': 'PENDING'
+                    };
+                    
+                    return `
+                        <div class="border-2 ${statusColors[o.status] || 'border-gray-300'} rounded-lg p-4">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <p class="font-semibold text-gray-800">${o.order_id}</p>
+                                    <p class="text-sm text-gray-600 mt-1">${o.email}</p>
+                                    <p class="text-xs text-gray-500 mt-1">${o.phone || 'No phone'}</p>
+                                    <p class="text-xs text-gray-400 mt-1">${new Date(o.created_at).toLocaleString()}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xl font-bold text-gray-800">${o.amount} XAF</p>
+                                    <p class="text-sm font-semibold uppercase mt-1">
+                                        ${statusText[o.status] || o.status}
+                                    </p>
+                                    ${o.payment_link ? `<a href="${o.payment_link}" target="_blank" class="text-xs text-indigo-600 hover:underline mt-1 inline-block">View Link</a>` : ''}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `).join('');
-                
-            } catch (error) {
-                console.error('Error loading orders:', error);
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error('Load orders error:', err);
             }
         }
-        
-        // Check single order status
-        async function checkStatus(orderId) {
-            try {
-                const response = await fetch(`/order/${orderId}`);
-                const order = await response.json();
-                
-                alert(`Order Status: ${order.status.toUpperCase()}\nAmount: ${order.amount} XAF`);
-                loadOrders();
-                
-            } catch (error) {
-                alert('Error checking status');
-            }
-        }
-        
-        function getStatusColor(status) {
-            const colors = {
-                'pending': 'border-yellow-300 bg-yellow-50',
-                'successful': 'border-green-500 bg-green-50',
-                'failed': 'border-red-500 bg-red-50'
-            };
-            return colors[status] || 'border-gray-300';
-        }
-        
-        function getStatusBadge(status) {
-            const badges = {
-                'pending': 'bg-yellow-500 text-white',
-                'successful': 'bg-green-500 text-white',
-                'failed': 'bg-red-500 text-white'
-            };
-            return badges[status] || 'bg-gray-500 text-white';
-        }
-        
-        // Auto-refresh orders every 10 seconds
-        setInterval(loadOrders, 10000);
-        
-        // Load orders on page load
+
         loadOrders();
+        setInterval(loadOrders, 15000);
     </script>
 </body>
 </html>
 '''
 
-# ============================================
-# ROUTES
-# ============================================
-
 @app.route('/')
 def index():
-    """Main dashboard"""
+    """Render the main page"""
     return render_template_string(HTML_TEMPLATE)
-
 
 @app.route('/checkout', methods=['POST'])
 def checkout():
-    """Process customer checkout"""
-    data = request.get_json()
-    
-    # Generate unique order ID
-    order_id = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    
-    # Save order to database
-    conn = sqlite3.connect('orders.db')
-    c = conn.cursor()
-    c.execute('''
-        INSERT INTO orders (order_id, customer_email, customer_phone, amount)
-        VALUES (?, ?, ?, ?)
-    ''', (order_id, data['email'], data['phone'], data['amount']))
-    conn.commit()
-    conn.close()
-    
-    # Initiate payment with Fapshi
-    payment_url = f"{FAPSHI_BASE_URL}/direct-pay"
-    headers = {
-        "apikey": FAPSHI_API_KEY,
-        "apiuser": FAPSHI_API_USER,
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "amount": data['amount'],
-        "phone": data['phone'],
-        "medium": "mobile money",
-        "email": data['email'],
-        "externalId": order_id,
-        "description": f"Order {order_id}"
-    }
-    
-    response = requests.post(payment_url, json=payload, headers=headers)
-    result = response.json()
-    
-    # Update order with transaction ID
-    trans_id = result.get('transId')
-    conn = sqlite3.connect('orders.db')
-    c = conn.cursor()
-    c.execute('UPDATE orders SET trans_id = ? WHERE order_id = ?', 
-              (trans_id, order_id))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        "order_id": order_id,
-        "trans_id": trans_id,
-        "message": "Payment initiated! Check your phone (653288958) for USSD prompt."
-    })
-
-
-@app.route('/webhook/fapshi', methods=['POST'])
-def fapshi_webhook():
-    """
-    Webhook endpoint - Fapshi calls this automatically when payment status changes
-    In production, set this URL in your Fapshi dashboard
-    """
+    """Create a payment link using Fapshi's /initiate-pay endpoint"""
     try:
-        payload = request.get_json()
+        data = request.get_json()
         
-        trans_id = payload.get('transId')
-        status = payload.get('status')
-        external_id = payload.get('externalId')
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
         
-        print("\n" + "="*60)
-        print("WEBHOOK RECEIVED (Automated!)")
-        print("="*60)
-        print(f"Order ID: {external_id}")
-        print(f"Transaction ID: {trans_id}")
-        print(f"Status: {status}")
-        print("="*60 + "\n")
+        # Validate required fields
+        if 'amount' not in data or 'email' not in data:
+            return jsonify({"error": "Missing required fields: amount and email"}), 400
         
-        # Update order status
-        conn = sqlite3.connect('orders.db')
-        c = conn.cursor()
-        c.execute('''
-            UPDATE orders 
-            SET status = ?, updated_at = ?
-            WHERE order_id = ?
-        ''', (status.lower(), datetime.now(), external_id))
-        conn.commit()
-        conn.close()
-        
-        if status == "SUCCESSFUL":
-            print(f"[AUTO] Order {external_id} fulfilled automatically!")
-            # Your business logic here
-        
-        return jsonify({"status": "received"}), 200
-        
+        order_id = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+        payload = {
+            "amount": int(data['amount']),
+            "email": data['email'],
+            "externalId": order_id
+        }
+
+        print(f"\n[REQUEST] Initiating payment for {order_id}")
+        print(f"[INFO] Amount: {data['amount']} XAF | Email: {data['email']}")
+        print(f"[INFO] Payload: {payload}")
+
+        try:
+            response = requests.post(
+                f"{FAPSHI_BASE_URL}/initiate-pay",
+                json=payload,
+                headers={
+                    "apikey": FAPSHI_API_KEY,
+                    "apiuser": FAPSHI_API_USER,
+                    "Content-Type": "application/json"
+                },
+                timeout=15
+            )
+        except requests.exceptions.RequestException as req_error:
+            error_msg = f"Request to Fapshi failed: {str(req_error)}"
+            print(f"[ERROR] {error_msg}")
+            return jsonify({"error": error_msg}), 500
+
+        print(f"\n[RESPONSE] Fapshi Status: {response.status_code}")
+        print(f"[RESPONSE] Body: {response.text}\n")
+
+        if response.status_code != 200:
+            error_detail = response.text
+            try:
+                error_json = response.json()
+                error_detail = str(error_json)
+            except:
+                pass
+            return jsonify({"error": f"Fapshi API error ({response.status_code}): {error_detail}"}), 500
+
+        try:
+            result = response.json()
+        except ValueError as json_error:
+            print(f"[ERROR] Failed to parse JSON: {json_error}")
+            print(f"[ERROR] Response text: {response.text}")
+            return jsonify({"error": "Invalid JSON response from Fapshi"}), 500
+
+        payment_link = result.get('link')
+        trans_id = result.get('transId')
+
+        if not payment_link or not trans_id:
+            print(f"[ERROR] Missing link or transId in response: {result}")
+            return jsonify({"error": f"Missing payment link or transaction ID. Response: {result}"}), 500
+
+        try:
+            conn = sqlite3.connect('orders.db')
+            c = conn.cursor()
+            c.execute('''
+                INSERT INTO orders (order_id, customer_email, customer_phone, amount, trans_id, payment_link, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending')
+            ''', (order_id, data['email'], data.get('phone', ''), data['amount'], trans_id, payment_link))
+            conn.commit()
+            conn.close()
+        except sqlite3.Error as db_error:
+            print(f"[ERROR] Database error: {db_error}")
+            return jsonify({"error": f"Database error: {str(db_error)}"}), 500
+
+        print(f"[SUCCESS] Order created: {order_id} | Trans ID: {trans_id}")
+
+        return jsonify({
+            "order_id": order_id,
+            "payment_link": payment_link,
+            "trans_id": trans_id
+        })
+
     except Exception as e:
-        print(f"Webhook error: {e}")
-        return jsonify({"error": str(e)}), 500
+        error_msg = f"Unexpected error: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": error_msg}), 500
 
-
-@app.route('/orders', methods=['GET'])
-def get_all_orders():
-    """Get all orders"""
+@app.route('/order/<order_id>')
+def get_order(order_id):
+    """Get order details by order ID"""
     conn = sqlite3.connect('orders.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM orders ORDER BY created_at DESC LIMIT 20')
-    orders = c.fetchall()
-    conn.close()
-    
-    return jsonify([{
-        "order_id": o[1],
-        "email": o[2],
-        "phone": o[3],
-        "amount": o[4],
-        "trans_id": o[5],
-        "status": o[6],
-        "created_at": o[7]
-    } for o in orders])
-
-
-@app.route('/order/<order_id>', methods=['GET'])
-def get_order_status(order_id):
-    """Get single order status"""
-    conn = sqlite3.connect('orders.db')
+    conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute('SELECT * FROM orders WHERE order_id = ?', (order_id,))
     order = c.fetchone()
     conn.close()
     
     if order:
-        return jsonify({
-            "order_id": order[1],
-            "email": order[2],
-            "amount": order[4],
-            "status": order[6],
-            "created_at": order[7]
-        })
-    else:
-        return jsonify({"error": "Order not found"}), 404
+        return jsonify(dict(order))
+    return jsonify({"error": "Order not found"}), 404
 
+@app.route('/orders')
+def get_orders():
+    """Get all orders (most recent first)"""
+    try:
+        conn = sqlite3.connect('orders.db')
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute('SELECT * FROM orders ORDER BY created_at DESC LIMIT 50')
+        orders = [dict(row) for row in c.fetchall()]
+        conn.close()
+        return jsonify(orders)
+    except Exception as e:
+        print(f"[ERROR] Failed to get orders: {e}")
+        return jsonify({"error": str(e)}), 500
 
-# ============================================
-# BACKGROUND JOB: Polling (Method 2)
-# ============================================
-def check_payment_status(trans_id):
-    """Query Fapshi API for payment status"""
-    url = f"{FAPSHI_BASE_URL}/payment-status/{trans_id}"
-    headers = {
-        "apikey": FAPSHI_API_KEY,
-        "apiuser": FAPSHI_API_USER,
-    }
+@app.route('/webhook/fapshi', methods=['POST'])
+def webhook():
+    """Handle Fapshi webhook notifications"""
+    try:
+        payload = request.get_json()
+        print(f"\n[WEBHOOK] Received: {payload}\n")
+        
+        if isinstance(payload, list) and payload:
+            payload = payload[0]
+        
+        status = payload.get('status', '').lower()
+        external_id = payload.get('externalId')
+        
+        if status and external_id:
+            conn = sqlite3.connect('orders.db')
+            c = conn.cursor()
+            c.execute(
+                'UPDATE orders SET status = ?, updated_at = ? WHERE order_id = ?',
+                (status, datetime.now(), external_id)
+            )
+            conn.commit()
+            conn.close()
+            print(f"[WEBHOOK] Updated order {external_id} to status: {status}")
+        
+        return jsonify({"ok": True})
     
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    return None
+    except Exception as e:
+        print(f"[ERROR] Webhook error: {e}")
+        return jsonify({"error": str(e)}), 500
 
-
-def polling_job():
-    """Background job that checks pending payments every 5 minutes"""
+def poll_status():
+    """Background thread to poll Fapshi for payment status updates"""
     while True:
+        time.sleep(30)
         try:
-            time.sleep(300)  # 5 minutes
-            
             conn = sqlite3.connect('orders.db')
             c = conn.cursor()
             c.execute("SELECT order_id, trans_id FROM orders WHERE status = 'pending'")
-            pending_orders = c.fetchall()
+            pending = c.fetchall()
             
-            for order_id, trans_id in pending_orders:
+            for order_id, trans_id in pending:
                 if trans_id:
-                    status_data = check_payment_status(trans_id)
-                    if status_data:
-                        new_status = status_data.get('status', '').lower()
+                    res = requests.get(
+                        f"{FAPSHI_BASE_URL}/payment-status/{trans_id}",
+                        headers={
+                            "apikey": FAPSHI_API_KEY,
+                            "apiuser": FAPSHI_API_USER
+                        },
+                        timeout=10
+                    )
+                    
+                    if res.status_code == 200:
+                        data = res.json()
+                        item = data[0] if isinstance(data, list) else data
+                        new_status = item.get('status', '').lower()
                         
-                        if new_status != 'pending':
-                            c.execute('''
-                                UPDATE orders 
-                                SET status = ?, updated_at = ?
-                                WHERE order_id = ?
-                            ''', (new_status, datetime.now(), order_id))
-                            
+                        if new_status and new_status != 'pending':
+                            c.execute(
+                                "UPDATE orders SET status = ?, updated_at = ? WHERE order_id = ?",
+                                (new_status, datetime.now(), order_id)
+                            )
                             print(f"[POLLING] Updated {order_id} to {new_status}")
             
             conn.commit()
             conn.close()
             
         except Exception as e:
-            print(f"Polling error: {e}")
+            print(f"[ERROR] Poll error: {e}")
 
-
-RENDER_URL = "https://payment-789p.onrender.com/"
-
-def self_ping():
+def keep_alive():
+    """Keep Render service alive by pinging itself"""
     while True:
         try:
-            requests.get(RENDER_URL, timeout=10)
-            print("[PING] App kept awake")
-        except Exception as e:
-            print(f"[PING ERROR] {e}")
-        time.sleep(300)  # 5 minutes
-# ============================================
-# START SERVER
-# ============================================
-if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("E-COMMERCE AUTOMATED PAYMENT SYSTEM")
-    print("="*60)
-    print("How Amazon Verifies Payments (ZERO Manual Work!)")
-    print("="*60)
-    print("\nServer running at: http://localhost:5000")
-    print("\nEndpoints:")
-    print("  GET  / - Dashboard")
-    print("  POST /checkout - Create order & initiate payment")
-    print("  POST /webhook/fapshi - Webhook (auto-called by Fapshi)")
-    print("  GET  /orders - View all orders")
-    print("  GET  /order/<id> - Check order status")
-    print("="*60 + "\n")
-    
-    # Start background polling job
-    polling_thread = threading.Thread(target=polling_job, daemon=True)
-    polling_thread.start()
-    print("[STARTED] Background polling job (checks every 5 minutes)")
+            requests.get(RENDER_URL, timeout=5)
+        except:
+            pass
+        time.sleep(300)
 
-    ping_thread = threading.Thread(target=self_ping, daemon=True)
-    ping_thread.start()
-    print("[STARTED] Self-ping every 5 minutes")
-    # Run Flask app
-    app.run(debug=True, port=5000, use_reloader=False)
+if __name__ == '__main__':
+    print("\n" + "="*50)
+    print("FAPSHI PAYMENT LINK SYSTEM - LIVE MODE")
+    print("="*50)
+    print(f"API URL: {FAPSHI_BASE_URL}")
+    print(f"Server: {RENDER_URL}")
+    print("="*50 + "\n")
+    
+    threading.Thread(target=poll_status, daemon=True).start()
+    threading.Thread(target=keep_alive, daemon=True).start()
+    
+    app.run(host='0.0.0.0', port=5000, debug=True)
