@@ -558,3 +558,7 @@ if __name__ == '__main__':
     
     # Run Flask app
     app.run(debug=True, port=5000, use_reloader=False)
+
+    
+    polling_thread = threading.Thread(target=polling_job, daemon=True)
+    polling_thread.start()
