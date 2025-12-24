@@ -533,6 +533,16 @@ def polling_job():
             print(f"Polling error: {e}")
 
 
+RENDER_URL = "https://payment-789p.onrender.com/"
+
+def self_ping():
+    while True:
+        try:
+            requests.get(RENDER_URL, timeout=10)
+            print("[PING] App kept awake")
+        except Exception as e:
+            print(f"[PING ERROR] {e}")
+        time.sleep(300)  # 5 minutes
 # ============================================
 # START SERVER
 # ============================================
@@ -555,6 +565,9 @@ if __name__ == '__main__':
     polling_thread = threading.Thread(target=polling_job, daemon=True)
     polling_thread.start()
     print("[STARTED] Background polling job (checks every 5 minutes)")
-    
+
+    ping_thread = threading.Thread(target=self_ping, daemon=True)
+    ping_thread.start()
+    print("[STARTED] Self-ping every 5 minutes")
     # Run Flask app
     app.run(debug=True, port=5000, use_reloader=False)
