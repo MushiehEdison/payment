@@ -58,58 +58,42 @@ HTML_TEMPLATE = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fapshi Payment Link System</title>
+    <title>Fapshi Payment</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-8">
-    <div class="max-w-4xl mx-auto">
-        <!-- Header -->
+<body class="bg-gray-50 min-h-screen p-8">
+    <div class="max-w-2xl mx-auto">
         <div class="text-center mb-12">
-            <h1 class="text-5xl font-bold text-gray-800 mb-2">Payment Link System</h1>
-            <p class="text-gray-600">Powered by Fapshi - Live Mode</p>
+            <h1 class="text-5xl font-light mb-4">Checkout</h1>
+            <p class="text-gray-600">Secure payment powered by Fapshi</p>
         </div>
 
-        <!-- Payment Form -->
-        <div class="bg-white rounded-2xl shadow-xl p-8 mb-8">
-            <h2 class="text-2xl font-semibold mb-6">Create Payment Link</h2>
-            <form id="checkoutForm" class="space-y-5">
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-10">
+            <form id="checkoutForm" class="space-y-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                    <input type="text" id="phone" value="653288958" 
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                           placeholder="6XXXXXXXX">
+                    <label class="block text-sm font-medium mb-2">Phone</label>
+                    <input type="text" id="phone" value="653288958" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                    <input type="email" id="email" value="mushiehedison66@gmail.com"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                           placeholder="email@example.com">
+                    <label class="block text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="email" value="mushiehedison66@gmail.com" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Amount (XAF)</label>
-                    <input type="number" id="amount" value="500" min="100"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                           placeholder="Minimum 100 XAF">
+                    <label class="block text-sm font-medium mb-2">Amount (XAF)</label>
+                    <input type="number" id="amount" value="500" min="100" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
                 </div>
-                <button type="submit" 
-                        class="w-full bg-indigo-600 text-white py-4 rounded-lg font-semibold hover:bg-indigo-700 transition-colors">
-                    Generate Payment Link
+                <button type="submit" class="w-full bg-black text-white py-4 rounded-lg font-medium hover:bg-gray-800">
+                    Pay with Fapshi
                 </button>
             </form>
 
-            <div id="result" class="mt-6 hidden"></div>
+            <div id="result" class="mt-8 hidden"></div>
         </div>
 
-        <!-- Orders List -->
-        <div class="bg-white rounded-2xl shadow-xl p-8">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-semibold">Recent Transactions</h2>
-                <button onclick="loadOrders()" class="text-indigo-600 hover:text-indigo-800">
-                    Refresh
-                </button>
-            </div>
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <h2 class="text-2xl font-light mb-6">Recent Orders</h2>
             <div id="ordersList" class="space-y-4">
-                <p class="text-center text-gray-500 py-8">Loading orders...</p>
+                <p class="text-center text-gray-500">Loading...</p>
             </div>
         </div>
     </div>
@@ -117,13 +101,12 @@ HTML_TEMPLATE = '''
     <script>
         document.getElementById('checkoutForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const phone = document.getElementById('phone').value.trim();
             const email = document.getElementById('email').value.trim();
             const amount = document.getElementById('amount').value;
 
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<div class="text-center py-4"><div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div><p class="mt-2 text-gray-600">Creating payment link...</p></div>';
+            resultDiv.innerHTML = '<p class="text-center">Creating payment link...</p>';
             resultDiv.classList.remove('hidden');
 
             try {
@@ -137,124 +120,65 @@ HTML_TEMPLATE = '''
                 if (data.error) throw new Error(data.error);
 
                 resultDiv.innerHTML = `
-                    <div class="border-2 border-green-500 bg-green-50 rounded-lg p-6">
-                        <div class="text-center mb-4">
-                            <div class="text-4xl mb-2">&#x2705;</div>
-                            <h3 class="text-xl font-semibold text-green-800">Payment Link Created!</h3>
-                            <p class="text-sm text-gray-600 mt-1">Order ID: ${data.order_id}</p>
-                        </div>
-                        <a href="${data.payment_link}" target="_blank" 
-                           class="block bg-indigo-600 text-white text-center px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors">
+                    <div class="text-center p-6 bg-green-50 rounded-lg">
+                        <p class="text-xl mb-4">Payment link ready!</p>
+                        <a href="${data.payment_link}" target="_blank" class="bg-black text-white px-8 py-3 rounded inline-block hover:bg-gray-800">
                             Open Payment Page
                         </a>
-                        <p class="text-xs text-gray-600 text-center mt-3">
-                            The payment page will open in a new tab
-                        </p>
+                        <p class="text-sm text-gray-600 mt-4">Order: ${data.order_id}</p>
                     </div>
                 `;
 
-                // Open payment link
                 window.open(data.payment_link, '_blank');
-                
-                // Start watching for status updates
                 watchStatus(data.order_id);
-                
-                // Refresh orders list
                 loadOrders();
 
             } catch (err) {
-                resultDiv.innerHTML = `
-                    <div class="border-2 border-red-500 bg-red-50 rounded-lg p-4">
-                        <p class="text-red-700 font-medium">Error: ${err.message}</p>
-                    </div>
-                `;
+                resultDiv.innerHTML = `<p class="text-red-600 text-center">Error: ${err.message}</p>`;
             }
         });
 
         function watchStatus(orderId) {
             const interval = setInterval(async () => {
-                try {
-                    const res = await fetch(`/order/${orderId}`);
-                    const order = await res.json();
-                    
-                    if (order.status !== 'pending') {
-                        clearInterval(interval);
-                        
-                        const resultDiv = document.getElementById('result');
-                        if (order.status === 'successful') {
-                            resultDiv.innerHTML = `
-                                <div class="border-2 border-green-500 bg-green-50 rounded-lg p-6 text-center">
-                                    <div class="text-5xl mb-3">&#x1F389;</div>
-                                    <h3 class="text-2xl font-bold text-green-800 mb-2">Payment Successful!</h3>
-                                    <p class="text-gray-700">Amount: <span class="font-semibold">${order.amount} XAF</span></p>
-                                    <p class="text-sm text-gray-600 mt-2">Transaction ID: ${order.trans_id}</p>
-                                </div>
-                            `;
-                        } else if (order.status === 'failed') {
-                            resultDiv.innerHTML = `
-                                <div class="border-2 border-red-500 bg-red-50 rounded-lg p-6 text-center">
-                                    <div class="text-4xl mb-2">&#x274C;</div>
-                                    <h3 class="text-xl font-bold text-red-800">Payment Failed</h3>
-                                    <p class="text-sm text-gray-600 mt-2">Please try again</p>
-                                </div>
-                            `;
-                        }
-                        
-                        loadOrders();
+                const res = await fetch(`/order/${orderId}`);
+                const order = await res.json();
+                if (order.status !== 'pending') {
+                    clearInterval(interval);
+                    if (order.status === 'successful') {
+                        document.getElementById('result').innerHTML = `
+                            <div class="text-center p-6 bg-green-100 rounded-lg">
+                                <p class="text-2xl">Payment Successful!</p>
+                                <p>Amount: ${order.amount} XAF</p>
+                            </div>
+                        `;
                     }
-                } catch (err) {
-                    console.error('Status check error:', err);
+                    loadOrders();
                 }
             }, 5000);
         }
 
         async function loadOrders() {
-            try {
-                const res = await fetch('/orders');
-                const orders = await res.json();
-                const list = document.getElementById('ordersList');
-                
-                if (orders.length === 0) {
-                    list.innerHTML = '<p class="text-center text-gray-500 py-8">No transactions yet</p>';
-                    return;
-                }
-                
-                list.innerHTML = orders.map(o => {
-                    const statusColors = {
-                        'successful': 'border-green-500 bg-green-50',
-                        'failed': 'border-red-500 bg-red-50',
-                        'pending': 'border-yellow-500 bg-yellow-50'
-                    };
-                    
-                    const statusText = {
-                        'successful': 'SUCCESS',
-                        'failed': 'FAILED',
-                        'pending': 'PENDING'
-                    };
-                    
-                    return `
-                        <div class="border-2 ${statusColors[o.status] || 'border-gray-300'} rounded-lg p-4">
-                            <div class="flex justify-between items-start">
-                                <div class="flex-1">
-                                    <p class="font-semibold text-gray-800">${o.order_id}</p>
-                                    <p class="text-sm text-gray-600 mt-1">${o.email}</p>
-                                    <p class="text-xs text-gray-500 mt-1">${o.phone || 'No phone'}</p>
-                                    <p class="text-xs text-gray-400 mt-1">${new Date(o.created_at).toLocaleString()}</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-xl font-bold text-gray-800">${o.amount} XAF</p>
-                                    <p class="text-sm font-semibold uppercase mt-1">
-                                        ${statusText[o.status] || o.status}
-                                    </p>
-                                    ${o.payment_link ? `<a href="${o.payment_link}" target="_blank" class="text-xs text-indigo-600 hover:underline mt-1 inline-block">View Link</a>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            } catch (err) {
-                console.error('Load orders error:', err);
+            const res = await fetch('/orders');
+            const orders = await res.json();
+            const list = document.getElementById('ordersList');
+            if (orders.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-500">No orders yet</p>';
+                return;
             }
+            list.innerHTML = orders.map(o => `
+                <div class="p-4 border rounded ${o.status === 'successful' ? 'border-green-500 bg-green-50' : 'border-gray-300'}">
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="font-medium">${o.order_id}</p>
+                            <p class="text-sm text-gray-600">${o.email || o.phone}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-medium">${o.amount} XAF</p>
+                            <p class="text-sm uppercase">${o.status}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
         }
 
         loadOrders();
